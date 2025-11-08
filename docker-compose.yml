@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  database:
+    image: postgres:14-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: mydb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+  
+  # ---------- TAMBAHAN SERVICE APLIKASI WEB DI SINI ----------
+  web:
+    build: . # Docker Compose akan mencari 'Dockerfile' di direktori saat ini
+    ports:
+      - "8000:8000" # Memetakan port internal 8000 ke port host 8000
+    depends_on:
+      - database # Memastikan database siap sebelum aplikasi web dimulai
