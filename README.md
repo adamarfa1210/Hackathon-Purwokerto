@@ -41,7 +41,7 @@ Proyek ini dibagi menjadi tiga *stream* utama. Semua anggota tim diharapkan sela
 
 | Anggota Tim | Peran | Tugas Utama | Software/Akses | Port Terkait |
 | :--- | :--- | :--- | :--- | :--- |
-| **[Nama Anda]** | Backend & Frontend Integrator | Membangun dan menjaga stabilitas Docker dan API Ingestion. Mengembangkan *Frontend* (UI) untuk visualisasi. | Terminal (Docker, Git), Code Editor (Frontend) | **8000** (API) |
+| **Adam** | Backend & Frontend Integrator | Membangun dan menjaga stabilitas Docker dan API Ingestion. Mengembangkan *Frontend* (UI) untuk visualisasi. | Terminal (Docker, Git), Code Editor (Frontend) | **8000** (API) |
 | **Radith** | Geospatial Analyst | Mengkoneksikan DB PostGIS ke QGIS. Membuat peta dasar, melakukan geoprocessing, dan visualisasi spasial. | **QGIS**, Koneksi DB (`192.168.1.14:5432`) | **5432** |
 | **Jodi** | Machine Learning Engineer | Mengembangkan model **Early Warning System (EWS)** dan logika peringatan berbasis *threshold* atau ML. | Python Environment, Database Client (Opsional) | **5432** |
 
