@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   database:
-    image: postgres:14-alpine
+    image: postgis/postgis:14-master
     restart: always
     environment:
       POSTGRES_DB: mydb
@@ -12,8 +12,14 @@ services:
   
   # ---------- TAMBAHAN SERVICE APLIKASI WEB DI SINI ----------
   web:
-    build: . # Docker Compose akan mencari 'Dockerfile' di direktori saat ini
+    build: . # Tetapkan build context di direktori utama
+    environment:
+      - FLASK_APP=app.py # Tambahkan environment variable Flask
+      - FLASK_ENV=development
     ports:
-      - "8000:8000" # Memetakan port internal 8000 ke port host 8000
+      - "8000:8000"
+    # Tambahkan volume agar Docker Compose dapat melihat perubahan kode Anda tanpa rebuild total
+    volumes:
+      - ./api_ingestion:/app
     depends_on:
-      - database # Memastikan database siap sebelum aplikasi web dimulai
+      - database
