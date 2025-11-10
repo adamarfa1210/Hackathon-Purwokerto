@@ -1,3 +1,0 @@
-# Isi api_ingestion/requirements.txt
-Flask
-psycopg2-binary
