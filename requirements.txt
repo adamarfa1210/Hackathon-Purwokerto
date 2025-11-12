@@ -9,3 +9,4 @@ six==1.17.0
 threadpoolctl==3.6.0
 tzdata==2025.2
 psycopg2-binary
+requests
