@@ -1,5 +1,7 @@
-# Isi api_ingestion/requirements.txt
-Flask
+flask
 psycopg2-binary
 flask-cors
+numpy
+scikit-learn  
+requests
 gunicorn
