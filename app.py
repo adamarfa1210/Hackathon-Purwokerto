@@ -20,7 +20,7 @@ def get_db_connection():
         'dbname': os.environ.get('POSTGRES_DB'),
         'user': os.environ.get('POSTGRES_USER'),
         'password': os.environ.get('POSTGRES_PASSWORD'),
-        'port': os.environ.get('POSTGRES_PORT', '5432'), # Gunakan default 5432
+        'port': os.environ.get('POSTGRES_PORT', '5432'), # DIKOREKSI: POSTGRES_PORT
     }
     
     # Cek apakah semua variabel kunci tersedia sebelum mencoba koneksi
@@ -99,56 +99,103 @@ def ingest_data():
         return jsonify({"status": "failed", "message": "Database insertion error."}), 500
 
 
-# --- ENDPOINT API (QGIS READ) ---
+# --- ENDPOINT API (SIMPLE DEBUG READ - Berdasarkan instruksi sebelumnya) ---
+@app.route('/api/simple_data', methods=['GET'])
+def get_simple_data():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    cur = None
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Implementasi query dan fetchall() sesuai instruksi sebelumnya
+        query = "SELECT sensor_id, level, rainfall FROM sensor_readings LIMIT 10;"
+        
+        cur.execute(query)
+        # Menggunakan fetchall() untuk mengambil semua 10 baris data sebagai list of dictionaries
+        data = cur.fetchall() 
+        
+        return jsonify(data)
+        
+    except psycopg2.Error as e:
+        print(f"SQL Error: {e}")
+        return jsonify({"error": "Failed to execute database query", "detail": str(e)}), 500
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        return jsonify({"error": "An unexpected server error occurred.", "detail": str(e)}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+
+# --- ENDPOINT API (QGIS READ - FIX UNTUK KESTABILAN DAN DEBUG) ---
 @app.route('/api/sensor_data', methods=['GET'])
 def get_sensor_data():
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
 
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    
-    # Query untuk mengambil data terbaru (latest) per sensor_id dalam format GeoJSON
-    query = """
-    WITH latest_readings AS (
-        SELECT DISTINCT ON (sensor_id) *
-        FROM sensor_readings
-        ORDER BY sensor_id, timestamp DESC
-    )
-    SELECT json_build_object(
-        'type', 'FeatureCollection',
-        'features', json_agg(
-            json_build_object(
-                'type', 'Feature',
-                'geometry', ST_AsGeoJSON(t.geom)::json,
-                'properties', json_build_object(
-                    'sensor_id', t.sensor_id, 
-                    'level', t.level, 
-                    'rainfall', t.rainfall, 
-                    'soil_saturation', t.soil_saturation, 
-                    'timestamp', t.timestamp
-                )
-            )
-        )
-    )
-    FROM latest_readings t;
-    """
-    
+    cur = None
     try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Query untuk mengambil data terbaru (latest) per sensor_id dalam format GeoJSON
+        query = """
+        WITH latest_readings AS (
+            SELECT DISTINCT ON (sensor_id) *
+            FROM sensor_readings
+            ORDER BY sensor_id, timestamp DESC
+        )
+        SELECT json_build_object(
+            'type', 'FeatureCollection',
+            'features', COALESCE(
+                json_agg(
+                    json_build_object(
+                        'type', 'Feature',
+                        'geometry', ST_AsGeoJSON(t.geom)::json,
+                        'properties', json_build_object(
+                            'sensor_id', t.sensor_id, 
+                            'level', t.level, 
+                            'rainfall', t.rainfall, 
+                            'soil_saturation', t.soil_saturation, 
+                            'timestamp', t.timestamp
+                        )
+                    )
+                ), 
+                '[]'::json -- Jika tidak ada data, kembalikan array kosong
+            )
+        ) AS geojson_output -- Tambahkan alias yang jelas
+        FROM latest_readings t;
+        """
+        
         cur.execute(query)
-        # Menggunakan COALESCE untuk memastikan selalu mengembalikan FeatureCollection kosong jika tidak ada data
         row = cur.fetchone()
-        geojson_data = row[0] if row and row[0] else {'type': 'FeatureCollection', 'features': []}
         
-        cur.close()
-        conn.close()
+        column_key = 'geojson_output'
         
+        # Perhatikan: Di sini sudah menggunakan row.get(column_key) untuk menghindari KeyError
+        geojson_data = row.get(column_key) if row else None
+        
+        # Jika hasil query null, kembalikan GeoJSON kosong yang valid
+        if geojson_data is None:
+             geojson_data = {'type': 'FeatureCollection', 'features': []}
+             
         return jsonify(geojson_data)
         
     except psycopg2.Error as e:
-        conn.close()
+        # Perubahan: Menyertakan pesan error SQL secara detail di respons JSON
+        error_detail = str(e).split('\n')[0] # Ambil baris pertama error
         print(f"SQL Error: {e}")
-        return jsonify({"error": "Failed to execute database query"}), 500
+        return jsonify({"error": "Failed to execute database query or GeoJSON error", "detail": error_detail}), 500
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        return jsonify({"error": "An unexpected server error occurred.", "detail": str(e)}), 500
+    finally:
+        # Menjamin kursor dan koneksi ditutup, bahkan jika ada error
+        if cur: cur.close()
+        if conn: conn.close()
 
 
 if __name__ == '__main__':
