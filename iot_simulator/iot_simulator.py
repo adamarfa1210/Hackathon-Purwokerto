@@ -4,22 +4,19 @@ import random
 import argparse
 import sys
 
-# --- KONFIGURASI API (Sama untuk semua simulator) ---
-API_SERVER_IP = "192.168.1.58"
-API_SERVER_PORT = 8000
-API_ENDPOINT = "/api/ingest"
-API_URL = f"http://{API_SERVER_IP}:{API_SERVER_PORT}{API_ENDPOINT}"
+# --- REVISI KONFIGURASI API ---
+# Ganti dengan URL publik Railway Anda yang sudah teruji.
+# Protokol diubah ke HTTPS, dan Port 8000 (lokal) dihapus.
 
-# --- PARAMETER DASAR SIMULASI (Rentang Sangat Diperluas) ---
-# Rentang umum yang lebih besar untuk variasi data cepat.
-MIN_LEVEL_BASE = 0.1  # Level air minimal (sangat surut)
-MAX_LEVEL_BASE = 3.0  # Level air maksimal (sangat pasang)
+API_URL = "https://hackathon-purwokerto-production.up.railway.app/api/ingest"
 
-MIN_RAIN = 0.1        # Hampir nol
-MAX_RAIN = 200.0      # Curah hujan ekstrem (untuk badai besar)
-MIN_SOIL = 10.0       # Sangat kering
-MAX_SOIL = 99.0       # Sangat jenuh
-
+# --- PARAMETER DASAR SIMULASI (Tidak Diubah) ---
+MIN_LEVEL_BASE = 0.1
+MAX_LEVEL_BASE = 3.0
+MIN_RAIN = 0.1
+MAX_RAIN = 200.0
+MIN_SOIL = 10.0
+MAX_SOIL = 99.0
 SEND_INTERVAL_SEC = 10 
 
 # Variabel yang akan diisi dari command line
@@ -33,16 +30,14 @@ def generate_data():
     global LEVEL_OFFSET, MIN_LEVEL_BASE, MAX_LEVEL_BASE, MAX_RAIN, MIN_SOIL, MAX_SOIL
 
     # 1. Ketinggian Air (Level)
-    # Rentang dasar yang lebar + offset lokasi (untuk perbedaan hulu/hilir yang besar)
     base_level = random.uniform(MIN_LEVEL_BASE, MAX_LEVEL_BASE)
     level = round(base_level + LEVEL_OFFSET, 3)
 
     # 2. Curah Hujan (Rainfall) - Lebih sering dan lebih ekstrem
-    # Probabilitas hujan ekstrem ditingkatkan menjadi 30%
     if random.random() < 0.30: 
-        rainfall = round(random.uniform(50.0, MAX_RAIN), 2) # Nilai ekstrem dimulai dari 50.0
+        rainfall = round(random.uniform(50.0, MAX_RAIN), 2)
     else:
-        rainfall = round(random.uniform(MIN_RAIN, 30.0), 2) # Batas hujan ringan juga diperluas hingga 30.0
+        rainfall = round(random.uniform(MIN_RAIN, 30.0), 2)
 
     # 3. Kelembaban Tanah (Soil Saturation) - Rentang yang lebih lebar
     saturation = round(random.uniform(MIN_SOIL, MAX_SOIL), 1)
@@ -61,22 +56,22 @@ def send_reading():
     payload = generate_data()
 
     try:
+        # METHOD HARUS POST
         response = requests.post(API_URL, json=payload)
         response.raise_for_status() 
         
         status_message = "SUCCESS" if response.status_code in [200, 201] else f"HTTP {response.status_code}"
         
-        # Output menyertakan nilai offset untuk memudahkan verifikasi
         print(f"[{time.strftime('%H:%M:%S')}] {DEVICE_ID} | {status_message} | Level: {payload['level']}m (Offset: +{LEVEL_OFFSET}m) | Rain: {payload['rainfall']}mm/h | Soil: {payload['soil_saturation']}%")
 
     except requests.exceptions.ConnectionError:
-        print(f"[{time.strftime('%H:%M:%S')}] {DEVICE_ID} | ERROR: Koneksi ditolak. Pastikan Docker API berjalan.")
+        print(f"[{time.strftime('%H:%M:%S')}] {DEVICE_ID} | ERROR: Koneksi ditolak. Pastikan URL API sudah benar (HTTPS).")
     except Exception as e:
         print(f"[{time.strftime('%H:%M:%S')}] {DEVICE_ID} | FAILED: {e}")
 
 if __name__ == '__main__':
     
-    # --- PROSES ARGUMEN COMMAND LINE ---
+    # --- PROSES ARGUMEN COMMAND LINE (Tidak Diubah) ---
     parser = argparse.ArgumentParser(description="IoT Sensor Data Simulator Sungai Citarum.")
     parser.add_argument('--id', type=str, required=True, help='ID unik untuk sensor (misal: Citarum-01).')
     parser.add_argument('--lat', type=float, required=True, help='Latitude (lintang) lokasi sensor.')

@@ -1,11 +1,11 @@
 source venv/bin/activate
-python iot_simulator.py --id CTR-01-MARSHA --lat -6.981697 --lon 107.630032 --offset 0.0
+python3 iot_simulator.py --id CTR-01-MARSHA --lat -6.981697 --lon 107.630032 --offset 0.0
 
 source venv/bin/activate
-python iot_simulator.py --id CTR-02-BJS --lat -6.984314 --lon 107.630086 --offset 0.5
+python3 iot_simulator.py --id CTR-02-BJS --lat -6.984314 --lon 107.630086 --offset 0.5
 
 source venv/bin/activate
-python iot_simulator.py --id CTR-03-GARDEN --lat -6.989812 --lon 107.631042 --offset 1.0
+python3 iot_simulator.py --id CTR-03-GARDEN --lat -6.989812 --lon 107.631042 --offset 1.0
 
 source venv/bin/activate
-python iot_simulator.py --id CTR-04-PUSAT --lat -6.991441 --lon 107.629780 --offset 2.0
+python3 iot_simulator.py --id CTR-04-PUSAT --lat -6.991441 --lon 107.629780 --offset 2.0

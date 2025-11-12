@@ -4,26 +4,32 @@ from psycopg2.extras import RealDictCursor
 from flask import Flask, jsonify, request
 from flask_cors import CORS 
 import json
+from datetime import datetime # Ditambahkan
 
 # --- KONFIGURASI FLASK DAN CORS ---
 app = Flask(__name__)
-# Izinkan CORS dari semua origin (*) untuk pengembangan
-# Untuk production, ganti '*' dengan domain frontend Anda
 CORS(app) 
+
+# --- PENYIMPANAN STATUS PREDIKSI (DI MEMORI) ---
+# Variabel global untuk menyimpan status prediksi terakhir dari worker.py
+status_prediksi_terkini = {
+    "status": "Inisialisasi",
+    "ketinggian_air": None,
+    "curah_hujan": None,
+    "timestamp": datetime.now().isoformat()
+}
 
 # --- FUNGSI KONEKSI DATABASE ---
 def get_db_connection():
     # Ambil detail koneksi dari Environment Variables Railway
-    # Railway akan menyediakan ini secara otomatis jika Anda menautkan Service Postgres
     conn_params = {
         'host': os.environ.get('POSTGRES_HOST'), 
         'dbname': os.environ.get('POSTGRES_DB'),
         'user': os.environ.get('POSTGRES_USER'),
         'password': os.environ.get('POSTGRES_PASSWORD'),
-        'port': os.environ.get('POSTGRES_PORT', '5432'), # DIKOREKSI: POSTGRES_PORT
+        'port': os.environ.get('POSTGRES_PORT', '5432'), 
     }
     
-    # Cek apakah semua variabel kunci tersedia sebelum mencoba koneksi
     if not all(conn_params.values()):
         print("FATAL: Database environment variables are not fully set.")
         return None
@@ -38,7 +44,6 @@ def get_db_connection():
 # --- ENDPOINT UTAMA ---
 @app.route('/')
 def index():
-    # Cek koneksi DB sederhana untuk diagnostic
     conn = get_db_connection()
     if conn:
         conn.close()
@@ -46,6 +51,41 @@ def index():
     else:
         return "API Service is running but **FAILED** to connect to database.", 500
 
+
+# ===================================================================
+# === BAGIAN BARU UNTUK MODEL ML (YANG KAMU TANYAKAN) ===
+# ===================================================================
+
+# --- ENDPOINT [POST] UNTUK MENERIMA PREDIKSI DARI WORKER ---
+@app.route('/api/update_status', methods=['POST'])
+def update_status_from_worker():
+    global status_prediksi_terkini
+    data = request.get_json()
+
+    # Validasi data yang masuk
+    if 'status' not in data:
+        return jsonify({"message": "Error: 'status' field is missing"}), 400
+
+    # Perbarui status global
+    status_prediksi_terkini = {
+        "status": data.get('status'),
+        "ketinggian_air": data.get('ketinggian_air_terakhir'), # Sesuaikan dengan payload worker
+        "curah_hujan": data.get('curah_hujan_terakhir'),   # Sesuaikan dengan payload worker
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    print(f"Menerima status baru: {status_prediksi_terkini['status']}")
+    return jsonify({"message": "Status updated successfully"}), 200
+
+# --- ENDPOINT [GET] UNTUK DIBACA OLEH WEBSITE/FRONTEND ---
+@app.route('/api/get_status', methods=['GET'])
+def get_current_status_for_web():
+    # Cukup kembalikan status terakhir yang disimpan
+    return jsonify(status_prediksi_terkini)
+
+# ===================================================================
+# === ENDPOINT LAMA KAMU (UNTUK IoT & QGIS) ===
+# ===================================================================
 
 # --- ENDPOINT API (IoT WRITE) ---
 @app.route('/api/ingest', methods=['POST'])
@@ -57,7 +97,6 @@ def ingest_data():
         return jsonify({"status": "failed", "message": "Database connection failed"}), 500
         
     try:
-        # Pengecekan data awal
         required_fields = ['sensor_id', 'level', 'rainfall', 'soil_saturation', 'latitude', 'longitude']
         for field in required_fields:
             if field not in data:
@@ -72,14 +111,12 @@ def ingest_data():
         
         cur = conn.cursor()
         cur.execute(query, (
-            # 1. Pastikan nilai numerik dikonversi ke float di Python
             data['sensor_id'], 
             float(data['level']), 
             float(data['rainfall']), 
             float(data['soil_saturation']),
             float(data['latitude']),
             float(data['longitude']),
-            # 2. Koordinat untuk ST_MakePoint juga harus float
             float(data['longitude']), 
             float(data['latitude']) 
         ))
@@ -94,12 +131,10 @@ def ingest_data():
         return jsonify({"status": "failed", "message": f"Missing or invalid field in payload: {e}"}), 400
     except psycopg2.Error as e:
         conn.close()
-        # Log error ke console untuk debugging
         print(f"Database insertion error: {e}") 
         return jsonify({"status": "failed", "message": "Database insertion error."}), 500
 
-
-# --- ENDPOINT API (SIMPLE DEBUG READ - Berdasarkan instruksi sebelumnya) ---
+# --- ENDPOINT API (SIMPLE DEBUG READ) ---
 @app.route('/api/simple_data', methods=['GET'])
 def get_simple_data():
     conn = get_db_connection()
@@ -109,19 +144,11 @@ def get_simple_data():
     cur = None
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Implementasi query dan fetchall() sesuai instruksi sebelumnya
         query = "SELECT sensor_id, level, rainfall FROM sensor_readings LIMIT 10;"
-        
         cur.execute(query)
-        # Menggunakan fetchall() untuk mengambil semua 10 baris data sebagai list of dictionaries
         data = cur.fetchall() 
-        
         return jsonify(data)
         
-    except psycopg2.Error as e:
-        print(f"SQL Error: {e}")
-        return jsonify({"error": "Failed to execute database query", "detail": str(e)}), 500
     except Exception as e:
         print(f"Unexpected Error: {e}")
         return jsonify({"error": "An unexpected server error occurred.", "detail": str(e)}), 500
@@ -129,8 +156,7 @@ def get_simple_data():
         if cur: cur.close()
         if conn: conn.close()
 
-
-# --- ENDPOINT API (QGIS READ - FIX UNTUK KESTABILAN DAN DEBUG) ---
+# --- ENDPOINT API (QGIS READ) ---
 @app.route('/api/sensor_data', methods=['GET'])
 def get_sensor_data():
     conn = get_db_connection()
@@ -140,8 +166,6 @@ def get_sensor_data():
     cur = None
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Query untuk mengambil data terbaru (latest) per sensor_id dalam format GeoJSON
         query = """
         WITH latest_readings AS (
             SELECT DISTINCT ON (sensor_id) *
@@ -164,41 +188,30 @@ def get_sensor_data():
                         )
                     )
                 ), 
-                '[]'::json -- Jika tidak ada data, kembalikan array kosong
+                '[]'::json 
             )
-        ) AS geojson_output -- Tambahkan alias yang jelas
+        ) AS geojson_output
         FROM latest_readings t;
         """
         
         cur.execute(query)
         row = cur.fetchone()
         
-        column_key = 'geojson_output'
+        geojson_data = row.get('geojson_output') if row else None
         
-        # Perhatikan: Di sini sudah menggunakan row.get(column_key) untuk menghindari KeyError
-        geojson_data = row.get(column_key) if row else None
-        
-        # Jika hasil query null, kembalikan GeoJSON kosong yang valid
         if geojson_data is None:
              geojson_data = {'type': 'FeatureCollection', 'features': []}
              
         return jsonify(geojson_data)
         
-    except psycopg2.Error as e:
-        # Perubahan: Menyertakan pesan error SQL secara detail di respons JSON
-        error_detail = str(e).split('\n')[0] # Ambil baris pertama error
-        print(f"SQL Error: {e}")
-        return jsonify({"error": "Failed to execute database query or GeoJSON error", "detail": error_detail}), 500
     except Exception as e:
         print(f"Unexpected Error: {e}")
         return jsonify({"error": "An unexpected server error occurred.", "detail": str(e)}), 500
     finally:
-        # Menjamin kursor dan koneksi ditutup, bahkan jika ada error
         if cur: cur.close()
         if conn: conn.close()
 
-
+# --- BLOK UNTUK MENJALANKAN SERVER ---
 if __name__ == '__main__':
-    # Blok ini hanya berjalan saat running lokal atau langsung (bukan via Gunicorn/Railway)
     port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port)
