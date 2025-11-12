@@ -1,4 +1,4 @@
-#!/home/adam22/Documents/Hackthon/docker-project/venv/bin/python3
+#!/home/adam/Documents/Lomba/Hackathon/sevent90/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
