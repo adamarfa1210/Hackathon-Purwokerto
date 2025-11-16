@@ -87,8 +87,6 @@ def get_current_status_for_web():
 
 # --- ENDPOINT API (READINGS UNTUK FRONTEND - MENGGANTIKAN IP LOKAL) ---
 # Endpoint ini diperlukan karena frontend React Anda memanggil /api/readings
-# KODE DI BAWAH INI SEMENTARA DIUBAH AGAR MENGGUNAKAN LOGIKA GET_STATUS
-# UNTUK MENGUJI BAHWA ROUTE NYA DIKENALI OLEH RAILWAY
 @app.route('/api/readings', methods=['GET'])
 def get_readings_for_web():
     # Mengambil data terbaru dari database untuk markers peta
@@ -131,6 +129,13 @@ def get_readings_for_web():
     finally:
         if cur: cur.close()
         if conn: conn.close()
+        
+# --- ENDPOINT API (ALTERNATIF UNTUK FRONTEND - JIKA /api/readings GAGAL) ---
+# Route sederhana yang mungkin diizinkan Railway
+@app.route('/readings', methods=['GET'])
+def get_readings_simple():
+    # Cukup panggil fungsi yang sudah ada untuk mengembalikan data
+    return get_readings_for_web()
 
 
 # ===================================================================
