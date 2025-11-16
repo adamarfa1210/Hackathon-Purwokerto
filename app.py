@@ -87,6 +87,8 @@ def get_current_status_for_web():
 
 # --- ENDPOINT API (READINGS UNTUK FRONTEND - MENGGANTIKAN IP LOKAL) ---
 # Endpoint ini diperlukan karena frontend React Anda memanggil /api/readings
+# KODE DI BAWAH INI SEMENTARA DIUBAH AGAR MENGGUNAKAN LOGIKA GET_STATUS
+# UNTUK MENGUJI BAHWA ROUTE NYA DIKENALI OLEH RAILWAY
 @app.route('/api/readings', methods=['GET'])
 def get_readings_for_web():
     # Mengambil data terbaru dari database untuk markers peta
@@ -96,8 +98,11 @@ def get_readings_for_web():
 
     cur = None
     try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Mengambil 5 data terbaru dan status risiko keseluruhan (placeholder)
+        # PENTING: Gunakan kursor untuk SELECT (seperti di endpoint lain)
+        cur = conn.cursor(cursor_factory=RealDictCursor) 
+        
+        # Karena kita hanya menguji koneksi, ambil data dummy (sensor_readings) 
+        # dan kembalikan dalam format yang diharapkan frontend
         query = """
         SELECT sensor_id, level AS water_level, rainfall, latitude, longitude, timestamp, 
                CASE 
@@ -112,7 +117,6 @@ def get_readings_for_web():
         cur.execute(query)
         readings = cur.fetchall() 
         
-        # Asumsi: Menentukan risiko keseluruhan dari status_prediksi_terkini
         current_risk = status_prediksi_terkini['status']
 
         return jsonify({
