@@ -86,8 +86,8 @@ def get_current_status_for_web():
     return jsonify(status_prediksi_terkini)
 
 # --- ENDPOINT API (READINGS UNTUK FRONTEND - MENGGANTIKAN IP LOKAL) ---
-# Endpoint ini diperlukan karena frontend React Anda memanggil /api/readings
-@app.route('/api/readings', methods=['GET'])
+# HANYA MENGGUNAKAN /readings UNTUK MENGHINDARI KONFLIK ROUTING DENGAN /api/
+@app.route('/readings', methods=['GET'])
 def get_readings_for_web():
     # Mengambil data terbaru dari database untuk markers peta
     conn = get_db_connection()
@@ -130,13 +130,6 @@ def get_readings_for_web():
         if cur: cur.close()
         if conn: conn.close()
         
-# --- ENDPOINT API (ALTERNATIF UNTUK FRONTEND - JIKA /api/readings GAGAL) ---
-# Route sederhana yang mungkin diizinkan Railway
-@app.route('/readings', methods=['GET'])
-def get_readings_simple():
-    # Cukup panggil fungsi yang sudah ada untuk mengembalikan data
-    return get_readings_for_web()
-
 
 # ===================================================================
 # === ENDPOINT LAMA (IoT & QGIS) ===
