@@ -1,0 +1,31 @@
+version: '3.8'
+services:
+  database:
+    image: postgis/postgis:14-master
+    restart: always
+    environment:
+      POSTGRES_DB: mydb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+  
+  # ---------- TAMBAHAN SERVICE APLIKASI WEB DI SINI ----------
+  web:
+    build: . 
+    environment:
+      # Environment variables untuk Flask
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+      # Environment variables untuk Koneksi Database (Penting!)
+      - POSTGRES_HOST=database   
+      - POSTGRES_DB=mydb         
+      - POSTGRES_USER=user       
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_PORT=5432       
+    ports:
+      - "8000:8000"
+    volumes:
+      - "./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql"
+    depends_on:
+      - database
