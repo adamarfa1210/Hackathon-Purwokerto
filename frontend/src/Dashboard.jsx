@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css';
 // --- 1. Konfigurasi Global ---
 const API_BASE_URL = process.env.REACT_APP_RAILWAY_API; 
 // PERINGATAN: Ganti endpoint IP lokal ini dengan endpoint publik Anda di Railway!
-const API_READINGS_URL = `${API_BASE_URL}/api/readings`;
+const API_READINGS_URL = `${API_BASE_URL}/api/get_status`;
 
 // Konfigurasi GeoServer (HARAP DIISI SECARA MANUAL)
 const GEOSERVER_WMS_URL = '[URL_GEOSERVER_ANDA]/wms'; 
@@ -55,35 +55,31 @@ const Dashboard = () => {
     try {
       const response = await fetch(API_READINGS_URL); 
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status ${response.status}`);
-      }
-      
-      const result = await response.json();
-      
-      if (result.status === 'success') {
-          // --- ASUMSI PEMISAHAN DATA ---
-          // Kita asumsikan data ML utama adalah yang terbaru dari readings[0]
-          // dan status keseluruhan dari current_risk
-          
-          if (result.readings && result.readings.length > 0) {
-              const latestReading = result.readings[0];
-              // Map data readings ke format data ML (asumsi fieldnya sama)
-              setData({
-                  curah_hujan_mm_per_jam: latestReading.rainfall,
-                  ketinggian_muka_air_meter: latestReading.water_level,
-                  debit_air_m3_per_detik: latestReading.debit_air || 0, // Tambahkan debit_air jika ada
-                  status: result.current_risk, // Status hasil ML/Logika
-                  timestamp: latestReading.timestamp
-              });
-          }
-          
-          setSensorReadings(result.readings || []);
-          setOverallRisk(result.current_risk || "AMAN");
+      if (result.status) {
+    // Kita buat array readings palsu dari data status untuk menghindari error di peta
+    setSensorReadings([{
+        sensor_id: "Pusat", 
+        water_level: result.ketinggian_air, 
+        rainfall: result.curah_hujan,
+        // Gunakan koordinat tengah Bandung/Purwokerto sebagai lokasi sensor
+        latitude: -6.9219, 
+        longitude: 107.6105, 
+        risk_level: result.status 
+    }]); 
+    setOverallRisk(result.status || "AMAN");
+    
+    // Update data utama ML
+    setData({
+        curah_hujan_mm_per_jam: result.curah_hujan,
+        ketinggian_muka_air_meter: result.ketinggian_air,
+        debit_air_m3_per_detik: 0, // Placeholder
+        status: result.status, 
+        timestamp: result.timestamp
+    });
 
-      } else {
-        setError(`Kesalahan Data: ${result.message}`);
-      }
+} else {
+    setError("Kesalahan format data dari /api/get_status.");
+}
 
     } catch (err) {
       setError("Kesalahan Koneksi ke API Readings. Periksa IP/URL.");
