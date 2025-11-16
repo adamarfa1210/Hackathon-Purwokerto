@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css';
 // --- 1. Konfigurasi Global ---
 const API_BASE_URL = process.env.REACT_APP_RAILWAY_API; 
 // PERINGATAN: Ganti endpoint IP lokal ini dengan endpoint publik Anda di Railway!
-const API_READINGS_URL = "http://192.168.1.58:8000/api/readings"; 
+const API_READINGS_URL = `${API_BASE_URL}/api/readings`;
 
 // Konfigurasi GeoServer (HARAP DIISI SECARA MANUAL)
 const GEOSERVER_WMS_URL = '[URL_GEOSERVER_ANDA]/wms'; 

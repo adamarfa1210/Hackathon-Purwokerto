@@ -4,11 +4,13 @@ from psycopg2.extras import RealDictCursor
 from flask import Flask, jsonify, request
 from flask_cors import CORS 
 import json
-from datetime import datetime # Ditambahkan
+from datetime import datetime
 
 # --- KONFIGURASI FLASK DAN CORS ---
 app = Flask(__name__)
-CORS(app) 
+# Solusi CORS: Mengizinkan akses dari semua origin (*) untuk semua endpoint di bawah /api/
+# Ini mengatasi masalah di Vercel/IP lokal Anda.
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # --- PENYIMPANAN STATUS PREDIKSI (DI MEMORI) ---
 # Variabel global untuk menyimpan status prediksi terakhir dari worker.py
@@ -53,7 +55,7 @@ def index():
 
 
 # ===================================================================
-# === BAGIAN BARU UNTUK MODEL ML (YANG KAMU TANYAKAN) ===
+# === BAGIAN BARU UNTUK MODEL ML ===
 # ===================================================================
 
 # --- ENDPOINT [POST] UNTUK MENERIMA PREDIKSI DARI WORKER ---
@@ -69,22 +71,66 @@ def update_status_from_worker():
     # Perbarui status global
     status_prediksi_terkini = {
         "status": data.get('status'),
-        "ketinggian_air": data.get('ketinggian_air_terakhir'), # Sesuaikan dengan payload worker
-        "curah_hujan": data.get('curah_hujan_terakhir'),   # Sesuaikan dengan payload worker
+        "ketinggian_air": data.get('ketinggian_air_terakhir'),
+        "curah_hujan": data.get('curah_hujan_terakhir'),
         "timestamp": datetime.now().isoformat()
     }
     
     print(f"Menerima status baru: {status_prediksi_terkini['status']}")
     return jsonify({"message": "Status updated successfully"}), 200
 
-# --- ENDPOINT [GET] UNTUK DIBACA OLEH WEBSITE/FRONTEND ---
+# --- ENDPOINT [GET] UNTUK DIBACA OLEH WEBSITE/FRONTEND (Status ML) ---
 @app.route('/api/get_status', methods=['GET'])
 def get_current_status_for_web():
     # Cukup kembalikan status terakhir yang disimpan
     return jsonify(status_prediksi_terkini)
 
+# --- ENDPOINT API (READINGS UNTUK FRONTEND - MENGGANTIKAN IP LOKAL) ---
+# Endpoint ini diperlukan karena frontend React Anda memanggil /api/readings
+@app.route('/api/readings', methods=['GET'])
+def get_readings_for_web():
+    # Mengambil data terbaru dari database untuk markers peta
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"status": "failed", "message": "Database connection failed"}), 500
+
+    cur = None
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Mengambil 5 data terbaru dan status risiko keseluruhan (placeholder)
+        query = """
+        SELECT sensor_id, level AS water_level, rainfall, latitude, longitude, timestamp, 
+               CASE 
+                   WHEN level > 3.5 THEN 'BAHAYA'
+                   WHEN level > 2.5 THEN 'WASPADA'
+                   ELSE 'AMAN'
+               END AS risk_level
+        FROM sensor_readings
+        ORDER BY timestamp DESC
+        LIMIT 5;
+        """
+        cur.execute(query)
+        readings = cur.fetchall() 
+        
+        # Asumsi: Menentukan risiko keseluruhan dari status_prediksi_terkini
+        current_risk = status_prediksi_terkini['status']
+
+        return jsonify({
+            "status": "success",
+            "readings": readings,
+            "current_risk": current_risk.upper()
+        })
+        
+    except Exception as e:
+        print(f"Readings Error: {e}")
+        return jsonify({"status": "failed", "message": "An error occurred while fetching readings."}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+
 # ===================================================================
-# === ENDPOINT LAMA KAMU (UNTUK IoT & QGIS) ===
+# === ENDPOINT LAMA (IoT & QGIS) ===
 # ===================================================================
 
 # --- ENDPOINT API (IoT WRITE) ---
@@ -134,29 +180,7 @@ def ingest_data():
         print(f"Database insertion error: {e}") 
         return jsonify({"status": "failed", "message": "Database insertion error."}), 500
 
-# --- ENDPOINT API (SIMPLE DEBUG READ) ---
-@app.route('/api/simple_data', methods=['GET'])
-def get_simple_data():
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({"error": "Database connection failed"}), 500
-
-    cur = None
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        query = "SELECT sensor_id, level, rainfall FROM sensor_readings LIMIT 10;"
-        cur.execute(query)
-        data = cur.fetchall() 
-        return jsonify(data)
-        
-    except Exception as e:
-        print(f"Unexpected Error: {e}")
-        return jsonify({"error": "An unexpected server error occurred.", "detail": str(e)}), 500
-    finally:
-        if cur: cur.close()
-        if conn: conn.close()
-
-# --- ENDPOINT API (QGIS READ) ---
+# --- ENDPOINT API (QGIS READ - GeoJSON) ---
 @app.route('/api/sensor_data', methods=['GET'])
 def get_sensor_data():
     conn = get_db_connection()
@@ -166,6 +190,7 @@ def get_sensor_data():
     cur = None
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Mengambil data GeoJSON dari data sensor terbaru (sudah ada di kode Anda)
         query = """
         WITH latest_readings AS (
             SELECT DISTINCT ON (sensor_id) *
@@ -210,6 +235,7 @@ def get_sensor_data():
     finally:
         if cur: cur.close()
         if conn: conn.close()
+
 
 # --- BLOK UNTUK MENJALANKAN SERVER ---
 if __name__ == '__main__':
