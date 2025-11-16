@@ -4,7 +4,7 @@ import L from 'leaflet'; // Import Leaflet untuk ikon kustom dan marker
 import 'leaflet/dist/leaflet.css'; 
 
 // --- 1. Konfigurasi Global ---
-const API_BASE_URL = process.env.REACT_APP_RAILWAY_API; 
+const API_BASE_URL = "https://hackathon-purwokerto-production.up.railway.app";
 // PERINGATAN: Ganti endpoint IP lokal ini dengan endpoint publik Anda di Railway!
 const API_READINGS_URL = `${API_BASE_URL}/readings`;
 
